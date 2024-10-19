@@ -194,71 +194,9 @@ type EventManager struct {
 By understanding these architectural decisions and trade-offs, developers can effectively leverage Strux for their simulation and game development needs while being aware of potential areas for customization or optimization based on specific use cases.
 
 ```mermaid
-
-classDiagram
-    class World {
-        -EntityManager entityManager
-        -[]System systems
-        -EventManager eventManager
-        +CreateEntity() Entity
-        +DestroyEntity(Entity)
-        +AddSystem(System)
-        +Update(float32)
-    }
-
-    class EntityManager {
-        -map[Entity]map[reflect.Type]Component components
-        -[]Archetype archetypes
-        +AddComponent(Entity, Component)
-        +RemoveComponent(Entity, reflect.Type)
-        +GetComponent(Entity, reflect.Type) Component
-        +Query(...reflect.Type) []Entity
-    }
-
-    class Entity {
-        <<uint32>>
-    }
-
-    class Component {
-        <<interface>>
-        +IsComponentData()
-    }
-
-    class System {
-        <<interface>>
-        +Update(float32)
-    }
-
-    class EventManager {
-        -map[string]map[uint64]func(interface{}) subscribers
-        +Subscribe(string, func(interface{})) uint64
-        +Unsubscribe(string, uint64)
-        +Publish(string, interface{})
-    }
-
-    class ComponentArray {
-        +[]ComponentData Data
-        +map[Entity]int SparseIndex
-        +int Size
-        +Add(Entity, ComponentData)
-        +Remove(Entity)
-        +Get(Entity) (ComponentData, bool)
-    }
-
-    class Archetype {
-        +[]reflect.Type componentTypes
-        +[]Entity entities
-        +[][]Component components
-    }
-
-    World "1" --* "1" EntityManager : contains
-    World "1" --* "0..*" System : manages
-    World "1" --* "1" EventManager : contains
-    EntityManager "1" --* "0..*" Entity : manages
-    EntityManager "1" --* "0..*" ComponentArray : uses
-    EntityManager "1" --* "0..*" Archetype : manages
-    ComponentArray "1" --* "0..*" Component : stores
-    Archetype "1" --* "0..*" Entity : groups
-    Archetype "1" --* "0..*" Component : associates
+graph TD;
+    A-->B;
+    A-->C;
+    B-->D;
+    C-->D;
 ```
-
