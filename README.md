@@ -40,10 +40,8 @@ The ECS architectural pattern is widely used in game development and complex sim
 
 To install Strux, use the following command:
 
-## Currently Updating to work via git and away from locality
-
 ```bash
-go get github.com/AMMPTT/strux
+git clone https://github.com/AMMPTT/strux.git
 ```
 
 ## Usage
