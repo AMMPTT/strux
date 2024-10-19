@@ -193,6 +193,7 @@ type EventManager struct {
 
 By understanding these architectural decisions and trade-offs, developers can effectively leverage Strux for their simulation and game development needs while being aware of potential areas for customization or optimization based on specific use cases.
 
+```mermaid
 
 classDiagram
     class World {
@@ -259,3 +260,5 @@ classDiagram
     ComponentArray "1" --* "0..*" Component : stores
     Archetype "1" --* "0..*" Entity : groups
     Archetype "1" --* "0..*" Component : associates
+```
+
