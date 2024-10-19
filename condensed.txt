@@ -1,0 +1,828 @@
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+// Component interfaces
+type Component interface{}
+
+// MouthComponent represents the state of the mouth
+type MouthComponent struct {
+	IsOpen bool
+}
+
+// LungComponent represents the state of the lungs
+type LungComponent struct {
+	Capacity     float64
+	CurrentVolume float64
+}
+
+// BreathingComponent represents the breathing state
+type BreathingComponent struct {
+	IsInhaling bool
+}
+
+// Entity represents a game object
+type Entity struct {
+	ID         int
+	Components map[string]Component
+}
+
+// System interface
+type System interface {
+	Update(entities []*Entity)
+}
+
+// BreathingSystem handles the breathing logic
+type BreathingSystem struct{}
+
+func (bs *BreathingSystem) Update(entities []*Entity) {
+	for _, entity := range entities {
+		mouth, hasMouth := entity.Components["Mouth"].(*MouthComponent)
+		lung, hasLung := entity.Components["Lung"].(*LungComponent)
+		breathing, hasBreathing := entity.Components["Breathing"].(*BreathingComponent)
+
+		if !hasMouth || !hasLung || !hasBreathing {
+			continue
+		}
+
+		if breathing.IsInhaling {
+			if lung.CurrentVolume < lung.Capacity {
+				mouth.IsOpen = true
+				lung.CurrentVolume += 0.1 // Inhale
+				if lung.CurrentVolume >= lung.Capacity {
+					breathing.IsInhaling = false
+				}
+			}
+		} else {
+			if lung.CurrentVolume > 0 {
+				mouth.IsOpen = true
+				lung.CurrentVolume -= 0.1 // Exhale
+				if lung.CurrentVolume <= 0 {
+					breathing.IsInhaling = true
+				}
+			}
+		}
+
+		fmt.Printf("Entity %d - Mouth: %v, Lung: %.2f, Inhaling: %v\n",
+			entity.ID, mouth.IsOpen, lung.CurrentVolume, breathing.IsInhaling)
+	}
+}
+
+func main() {
+	// Create an entity
+	entity := &Entity{
+		ID: 1,
+		Components: map[string]Component{
+			"Mouth":     &MouthComponent{IsOpen: false},
+			"Lung":      &LungComponent{Capacity: 1.0, CurrentVolume: 0},
+			"Breathing": &BreathingComponent{IsInhaling: true},
+		},
+	}
+
+	// Create a breathing system
+	breathingSystem := &BreathingSystem{}
+
+	// Simulation loop
+	ticker := time.NewTicker(600 * time.Millisecond)
+	defer ticker.Stop()
+
+	for i := 0; i < 20; i++ { // Run for 20 ticks
+		<-ticker.C
+		fmt.Printf("\nTick %d\n", i+1)
+		breathingSystem.Update([]*Entity{entity})
+	}
+}module go-server
+
+go 1.23.2
+package main
+
+import (
+    "fmt"
+    "time"
+    "go-server/internal/ecs"
+    "go-server/pkg/components"
+)
+
+func main() {
+    world := ecs.NewWorld()
+    
+    // Create breathing system
+    breathingSystem := ecs.NewBreathingSystem(world)
+    world.AddSystem(breathingSystem)
+    
+    // Subscribe to breath events
+    world.EventManager.Subscribe("EntityBreathed", func(data interface{}) {
+        if event, ok := data.(ecs.BreathEvent); ok {
+            state := "exhaling"
+            if event.State == components.Inhale {
+                state = "inhaling"
+            }
+            fmt.Printf("Entity %d is %s (Volume: %.2f)\n", 
+                event.Entity, state, event.Volume)
+        }
+    })
+    
+    // Create entity with components
+    entity := world.CreateEntity()
+    world.AddComponent(entity, &components.Lung{
+        Capacity: 1.0,
+        Volume:   0.0,
+        State:    components.Inhale,
+    })
+    world.AddComponent(entity, &components.Mouth{
+        IsOpen: true,
+    })
+    
+    // Simulation loop
+    ticker := time.NewTicker(100 * time.Millisecond)
+    defer ticker.Stop()
+    
+    fmt.Println("Starting breathing simulation...")
+    for i := 0; i < 50; i++ {
+        <-ticker.C
+        world.Update(0.1)
+    }
+}module go-server
+
+go 1.21// internal/ecs/archetype.go
+
+package ecs
+
+import (
+	"reflect"
+    "go-server/pkg/components"
+)
+
+type Component = components.ComponentData
+
+type Archetype struct {
+    componentTypes []reflect.Type
+    entities       []Entity
+    components     [][]Component
+}// internal/ecs/breathing_system.go
+package ecs
+
+import (
+    "reflect"
+    "go-server/pkg/components"
+)
+
+type BreathingSystem struct {
+    world *World
+}
+
+func NewBreathingSystem(world *World) *BreathingSystem {
+    return &BreathingSystem{world: world}
+}
+
+type BreathEvent struct {
+    Entity Entity
+    State  components.LungState
+    Volume float32
+}
+
+func (s *BreathingSystem) Update(dt float32) {
+    s.world.mu.RLock()
+    defer s.world.mu.RUnlock()
+
+    lungArray := s.world.components[reflect.TypeOf(&components.Lung{})]
+    mouthArray := s.world.components[reflect.TypeOf(&components.Mouth{})]
+
+    if lungArray == nil || mouthArray == nil {
+        return
+    }
+
+    lungArray.Lock()
+    mouthArray.Lock()
+    defer lungArray.Unlock()
+    defer mouthArray.Unlock()
+
+    for i := 0; i < lungArray.Size; i++ {
+        entityIndex := i
+        lung, ok := lungArray.Data[i].(*components.Lung)
+        if !ok {
+            continue
+        }
+        mouth, ok := mouthArray.Data[entityIndex].(*components.Mouth)
+        if !ok {
+            continue
+        }
+
+        previousState := lung.State
+        previousVolume := lung.Volume
+
+        // Update breathing state
+        if lung.State == components.Exhale {
+            lung.Volume -= dt * 0.5 // Exhale rate
+            if lung.Volume <= 0 {
+                lung.Volume = 0
+                lung.State = components.Inhale
+                mouth.IsOpen = true
+            }
+        } else {
+            lung.Volume += dt * 0.5 // Inhale rate
+            if lung.Volume >= lung.Capacity {
+                lung.Volume = lung.Capacity
+                lung.State = components.Exhale
+                mouth.IsOpen = false
+            }
+        }
+
+        // Emit event if state changed
+        if lung.State != previousState || lung.Volume != previousVolume {
+            s.world.EventManager.Publish("EntityBreathed", BreathEvent{
+                Entity: Entity(entityIndex),
+                State:  lung.State,
+                Volume: lung.Volume,
+            })
+        }
+    }
+}package ecs
+
+import (
+	"reflect"
+	"sync"
+	"go-server/pkg/components"
+
+)
+
+// ComponentPool manages a pool of components of a specific type
+type ComponentPool struct {
+    componentType reflect.Type
+    pool          []components.ComponentData
+    mu            sync.Mutex
+}
+
+// NewComponentPool creates a new ComponentPool for a given component type
+func NewComponentPool(componentType reflect.Type) *ComponentPool {
+    return &ComponentPool{
+        componentType: componentType,
+        pool:          make([]components.ComponentData, 0),
+    }
+}
+
+// Get retrieves a component from the pool or creates a new one if the pool is empty
+func (cp *ComponentPool) Get() Component {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+
+	if len(cp.pool) == 0 {
+		// Create a new component if the pool is empty
+		return reflect.New(cp.componentType).Interface().(Component)
+	}
+
+	// Remove and return the last component from the pool
+	component := cp.pool[len(cp.pool)-1]
+	cp.pool = cp.pool[:len(cp.pool)-1]
+	return component
+}
+
+// Return puts a component back into the pool
+func (cp *ComponentPool) Return(component Component) {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+
+	// Ensure the component is of the correct type
+	if reflect.TypeOf(component) != cp.componentType {
+		panic("Attempted to return component of wrong type to pool")
+	}
+
+	cp.pool = append(cp.pool, component)
+}
+
+// Size returns the current number of components in the pool
+func (cp *ComponentPool) Size() int {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	return len(cp.pool)
+}// internal/ecs/component_storage.go
+
+package ecs
+
+import (
+    "sync"
+    "go-server/pkg/components"
+)
+
+type ComponentArray struct {
+    Data        []components.ComponentData
+    SparseIndex map[Entity]int
+    Size        int
+    sync.RWMutex
+}
+
+
+func NewComponentArray() *ComponentArray {
+    return &ComponentArray{
+        Data:        make([]components.ComponentData, 0),
+        SparseIndex: make(map[Entity]int),
+    }
+}
+
+func (ca *ComponentArray) Add(entity Entity, component components.ComponentData) {
+    ca.Lock()
+    defer ca.Unlock()
+
+    if index, exists := ca.SparseIndex[entity]; exists {
+        ca.Data[index] = component
+    } else {
+        ca.Data = append(ca.Data, component)
+        ca.SparseIndex[entity] = ca.Size
+        ca.Size++
+    }
+}
+
+func (ca *ComponentArray) Remove(entity Entity) {
+    ca.Lock()
+    defer ca.Unlock()
+
+    if index, exists := ca.SparseIndex[entity]; exists {
+        lastIndex := ca.Size - 1
+        ca.Data[index] = ca.Data[lastIndex]
+        ca.Data = ca.Data[:lastIndex]
+        delete(ca.SparseIndex, entity)
+        ca.Size--
+    }
+}
+
+func (ca *ComponentArray) Get(entity Entity) (components.ComponentData, bool) {
+    ca.RLock()
+    defer ca.RUnlock()
+
+    if index, exists := ca.SparseIndex[entity]; exists {
+        return ca.Data[index], true
+    }
+    return nil, false
+}
+
+func (ca *ComponentArray) GetAll() []components.ComponentData {
+    ca.RLock()
+    defer ca.RUnlock()
+
+    return ca.Data
+}// File: internal/ecs/entity.go
+package ecs
+
+type Entity uint32
+
+const (
+    IndexBits   = 24
+    VersionBits = 8
+    IndexMask   = (1 << IndexBits) - 1
+    VersionMask = (1 << VersionBits) - 1
+)package ecs
+
+import (
+	"fmt"
+	"reflect"
+	"sync"
+	"go-server/pkg/components"
+	
+)
+
+type EntityManager struct {
+    entities       map[Entity]bool
+    components     map[Entity]map[reflect.Type]components.ComponentData
+    archetypes     []*Archetype
+    componentPools map[reflect.Type]*ComponentPool
+    nextEntityID   Entity
+    mu             sync.RWMutex
+}
+
+func NewEntityManager() *EntityManager {
+	return &EntityManager{
+		entities:       make(map[Entity]bool),
+		components:     make(map[Entity]map[reflect.Type]Component),
+		archetypes:     make([]*Archetype, 0),
+		componentPools: make(map[reflect.Type]*ComponentPool),
+	}
+}
+
+func (em *EntityManager) CreateEntity() Entity {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	
+	id := em.nextEntityID
+	em.entities[id] = true
+	em.components[id] = make(map[reflect.Type]Component)
+	em.nextEntityID++
+	return id
+}
+
+func (em *EntityManager) DestroyEntity(entity Entity) {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	
+	if !em.entities[entity] {
+		return // Entity doesn't exist, nothing to do
+	}
+	
+	delete(em.entities, entity)
+	for componentType, component := range em.components[entity] {
+		if pool, exists := em.componentPools[componentType]; exists {
+			pool.Return(component)
+		}
+	}
+	delete(em.components, entity)
+	
+	for _, archetype := range em.archetypes {
+		for i, e := range archetype.entities {
+			if e == entity {
+				lastIdx := len(archetype.entities) - 1
+				archetype.entities[i] = archetype.entities[lastIdx]
+				archetype.entities = archetype.entities[:lastIdx]
+				for j := range archetype.components {
+					archetype.components[j][i] = archetype.components[j][lastIdx]
+					archetype.components[j] = archetype.components[j][:lastIdx]
+				}
+				break
+			}
+		}
+	}
+}
+
+func (em *EntityManager) UpdateComponent(entity Entity, component Component) {
+    em.mu.Lock()
+    defer em.mu.Unlock()
+
+    if !em.entities[entity] {
+        panic(fmt.Sprintf("Entity %d does not exist", entity))
+    }
+
+    componentType := reflect.TypeOf(component)
+    if _, exists := em.components[entity][componentType]; !exists {
+        panic(fmt.Sprintf("Component of type %v does not exist for entity %d", componentType, entity))
+    }
+
+    em.components[entity][componentType] = component
+
+    // Update component in the appropriate archetype
+    for _, archetype := range em.archetypes {
+        for i, e := range archetype.entities {
+            if e == entity {
+                for j, ct := range archetype.componentTypes {
+                    if ct == componentType {
+                        archetype.components[j][i] = component
+                        break
+                    }
+                }
+                break
+            }
+        }
+    }
+
+    fmt.Printf("Updated Component!... %d %+v\n", entity, component)
+}
+
+func (em *EntityManager) AddComponent(entity Entity, component Component) {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	fmt.Println("Adding Component!...", entity, component)
+
+	
+	if !em.entities[entity] {
+		panic(fmt.Sprintf("Entity %d does not exist", entity))
+	}
+	
+	componentType := reflect.TypeOf(component)
+	if pool, exists := em.componentPools[componentType]; exists {
+		component = pool.Get()
+	}
+	em.components[entity][componentType] = component
+	
+	// Update archetypes
+	componentTypes := make([]reflect.Type, 0, len(em.components[entity]))
+	for ct := range em.components[entity] {
+		componentTypes = append(componentTypes, ct)
+	}
+	
+	var targetArchetype *Archetype
+	for _, archetype := range em.archetypes {
+		if reflect.DeepEqual(archetype.componentTypes, componentTypes) {
+			targetArchetype = archetype
+			break
+		}
+	}
+	
+	if targetArchetype == nil {
+		targetArchetype = &Archetype{
+			componentTypes: componentTypes,
+			entities:       make([]Entity, 0),
+			components:     make([][]Component, len(componentTypes)),
+		}
+		em.archetypes = append(em.archetypes, targetArchetype)
+	}
+	
+	targetArchetype.entities = append(targetArchetype.entities, entity)
+	for i, ct := range targetArchetype.componentTypes {
+		targetArchetype.components[i] = append(targetArchetype.components[i], em.components[entity][ct])
+	}
+}
+
+func (em *EntityManager) RemoveComponent(entity Entity, componentType reflect.Type) {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	
+	if !em.entities[entity] {
+		return // Entity doesn't exist, nothing to do
+	}
+	
+	if component, exists := em.components[entity][componentType]; exists {
+		if pool, exists := em.componentPools[componentType]; exists {
+			pool.Return(component)
+		}
+		delete(em.components[entity], componentType)
+		
+		// Update archetypes
+		for _, archetype := range em.archetypes {
+			for i, e := range archetype.entities {
+				if e == entity {
+					lastIdx := len(archetype.entities) - 1
+					archetype.entities[i] = archetype.entities[lastIdx]
+					archetype.entities = archetype.entities[:lastIdx]
+					for j := range archetype.components {
+						archetype.components[j][i] = archetype.components[j][lastIdx]
+						archetype.components[j] = archetype.components[j][:lastIdx]
+					}
+					break
+				}
+			}
+		}
+	}
+}
+
+func (em *EntityManager) GetComponent(entity Entity, componentType reflect.Type) (Component, bool) {
+	em.mu.RLock()
+	defer em.mu.RUnlock()
+	
+	if components, exists := em.components[entity]; exists {
+		component, exists := components[componentType]
+		return component, exists
+	}
+	return nil, false
+}
+
+func (em *EntityManager) Query(componentTypes ...reflect.Type) []Entity {
+	em.mu.RLock()
+	defer em.mu.RUnlock()
+	
+	var result []Entity
+	for _, archetype := range em.archetypes {
+		if len(archetype.componentTypes) < len(componentTypes) {
+			continue
+		}
+		
+		match := true
+		for _, queryType := range componentTypes {
+			found := false
+			for _, archetypeType := range archetype.componentTypes {
+				if archetypeType == queryType {
+					found = true
+					break
+				}
+			}
+			if !found {
+				match = false
+				break
+			}
+		}
+		
+		if match {
+			result = append(result, archetype.entities...)
+		}
+	}
+	return result
+}
+
+func (em *EntityManager) InitializeComponentPool(componentType reflect.Type) {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	
+	if _, exists := em.componentPools[componentType]; !exists {
+		em.componentPools[componentType] = NewComponentPool(componentType)
+	}
+}package ecs
+
+import (
+    "fmt"
+    "sync"
+)
+
+type EventManager struct {
+    subscribers map[string]map[uint64]func(interface{})
+    mu          sync.RWMutex
+    nextID      uint64
+}
+
+func NewEventManager() *EventManager {
+    return &EventManager{
+        subscribers: make(map[string]map[uint64]func(interface{})),
+        nextID:      1,
+    }
+}
+
+func (em *EventManager) Subscribe(eventType string, callback func(interface{})) uint64 {
+    em.mu.Lock()
+    defer em.mu.Unlock()
+
+    if em.subscribers[eventType] == nil {
+        em.subscribers[eventType] = make(map[uint64]func(interface{}))
+    }
+
+    id := em.nextID
+    em.subscribers[eventType][id] = callback
+    em.nextID++
+
+    fmt.Printf("Subscribed to %s with ID %d\n", eventType, id)
+    return id
+}
+
+func (em *EventManager) Unsubscribe(eventType string, id uint64) {
+    em.mu.Lock()
+    defer em.mu.Unlock()
+
+    if callbacks, exists := em.subscribers[eventType]; exists {
+        delete(callbacks, id)
+        fmt.Printf("Unsubscribed from %s with ID %d\n", eventType, id)
+    }
+}
+
+func (em *EventManager) Publish(eventType string, data interface{}) {
+    em.mu.RLock()
+    defer em.mu.RUnlock()
+
+    if callbacks, exists := em.subscribers[eventType]; exists {
+        for _, callback := range callbacks {
+            callback(data)
+        }
+    }
+}package ecs
+
+type System interface {
+	Update(dt float32)
+}package ecs
+
+import (
+    "encoding/json"
+    "reflect"
+    "sync"
+    "fmt"
+    "go-server/pkg/components"
+)
+
+type World struct {
+    entities      map[Entity]bool
+    components    map[reflect.Type]*ComponentArray
+    systems       []System
+    EventManager  *EventManager  // Changed to uppercase to export
+    mu            sync.RWMutex
+}
+
+func NewWorld() *World {
+    return &World{
+        entities:     make(map[Entity]bool),
+        components:   make(map[reflect.Type]*ComponentArray),
+        systems:      make([]System, 0),
+        EventManager: NewEventManager(),
+    }
+}
+
+
+func (w *World) AddSystem(system System) {
+    w.systems = append(w.systems, system)
+    fmt.Println("Adding System!...", system)
+}
+
+func (w *World) Update(dt float32) {
+    var wg sync.WaitGroup
+    for _, system := range w.systems {
+        wg.Add(1)
+        go func(s System) {
+            defer wg.Done()
+            s.Update(dt)
+        }(system)
+    }
+    wg.Wait()
+}
+
+func (w *World) CreateEntity() Entity {
+    w.mu.Lock()
+    defer w.mu.Unlock()
+    
+    id := Entity(len(w.entities))
+    w.entities[id] = true
+    return id
+}
+
+func (w *World) AddComponent(entity Entity, component components.ComponentData) {
+    w.mu.Lock()
+    defer w.mu.Unlock()
+    
+    componentType := reflect.TypeOf(component)
+    if w.components[componentType] == nil {
+        w.components[componentType] = NewComponentArray()
+    }
+    w.components[componentType].Add(entity, component)
+}
+
+func (w *World) RemoveComponent(entity Entity, componentType reflect.Type) {
+    w.mu.Lock()
+    defer w.mu.Unlock()
+    
+    if compArray, exists := w.components[componentType]; exists {
+        compArray.Remove(entity)
+    }
+}
+
+func (w *World) GetComponent(entity Entity, componentType reflect.Type) (components.ComponentData, bool) {
+    w.mu.RLock()
+    defer w.mu.RUnlock()
+    
+    if compArray, exists := w.components[componentType]; exists {
+        return compArray.Get(entity)
+    }
+    return nil, false
+}
+
+func (w *World) SaveState() ([]byte, error) {
+    w.mu.RLock()
+    defer w.mu.RUnlock()
+    
+    state := struct {
+        Entities   map[Entity]bool
+        Components map[string][]components.ComponentData
+    }{
+        Entities:   w.entities,
+        Components: make(map[string][]components.ComponentData),
+    }
+    
+    for compType, compArray := range w.components {
+        state.Components[compType.String()] = compArray.GetAll()
+    }
+    
+    return json.Marshal(state)
+}
+
+func (w *World) LoadState(data []byte) error {
+    var state struct {
+        Entities   map[Entity]bool
+        Components map[string][]components.ComponentData
+    }
+    
+    if err := json.Unmarshal(data, &state); err != nil {
+        return err
+    }
+    
+    w.mu.Lock()
+    defer w.mu.Unlock()
+    
+    w.entities = state.Entities
+    w.components = make(map[reflect.Type]*ComponentArray)
+    
+    for _, comps := range state.Components {
+        if len(comps) == 0 {
+            continue
+        }
+        compType := reflect.TypeOf(comps[0])
+        compArray := NewComponentArray()
+        for _, comp := range comps {
+            compArray.Add(Entity(len(compArray.Data)), comp)
+        }
+        w.components[compType] = compArray
+    }
+    
+    return nil
+}// pkg/components/component.go
+
+package components
+
+type ComponentData interface {
+    IsComponentData()
+}// pkg/components/lung.go
+
+package components
+
+type LungState int
+
+const (
+    Exhale LungState = iota
+    Inhale
+)
+
+type Lung struct {
+    State    LungState
+    Capacity float32
+    Volume   float32
+}
+
+func (l *Lung) IsComponentData() {}// pkg/components/mouth.go
+package components
+
+type Mouth struct {
+    IsOpen bool
+}
+
+func (m *Mouth) IsComponentData() {}
