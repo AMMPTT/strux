@@ -3,8 +3,8 @@ package main
 import (
     "fmt"
     "time"
-    "go-server/internal/ecs"
-    "go-server/pkg/components"
+    "github.com/AMMPTT/strux/internal/ecs"
+    "github.com/AMMPTT/strux/pkg/components"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package ecs
 
 import (
     "reflect"
-    "go-server/pkg/components"
+    "github.com/AMMPTT/strux/pkg/components"
 )
 
 type BreathingSystem struct {

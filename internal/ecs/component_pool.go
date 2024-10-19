@@ -3,7 +3,7 @@ package ecs
 import (
 	"reflect"
 	"sync"
-	"go-server/pkg/components"
+    "github.com/AMMPTT/strux/pkg/components"
 
 )
 

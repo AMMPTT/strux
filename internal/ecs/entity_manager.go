@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-	"go-server/pkg/components"
+    "github.com/AMMPTT/strux/pkg/components"
 	
 )
 

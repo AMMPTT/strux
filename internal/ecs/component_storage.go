@@ -4,7 +4,7 @@ package ecs
 
 import (
     "sync"
-    "go-server/pkg/components"
+    "github.com/AMMPTT/strux/pkg/components"
 )
 
 type ComponentArray struct {

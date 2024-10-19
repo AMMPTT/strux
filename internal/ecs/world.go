@@ -5,7 +5,7 @@ import (
     "reflect"
     "sync"
     "fmt"
-    "go-server/pkg/components"
+    "github.com/AMMPTT/strux/pkg/components"
 )
 
 type World struct {

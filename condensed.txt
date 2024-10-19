@@ -94,9 +94,13 @@ func main() {
 		fmt.Printf("\nTick %d\n", i+1)
 		breathingSystem.Update([]*Entity{entity})
 	}
-}module go-server
+}module github.com/AMMPTT/strux
 
-go 1.23.2
+go 1.21
+
+replace go-server/internal/ecs => ./internal/ecs
+
+replace go-server/pkg/components => ./pkg/components
 package main
 
 import (
