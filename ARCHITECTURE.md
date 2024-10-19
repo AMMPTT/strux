@@ -21,29 +21,39 @@ Strux is a high-performance Entity Component System (ECS) implemented in Go, des
 
 ### World
 
-The World is the central container that manages all aspects of the ECS. It holds references to entities, components, and systems, and coordinates their interactions.
+The World is the top-level container in the Strux ECS. It manages the overall simulation state and serves as the primary interface for creating, destroying, and querying entities. The World does not directly manage component data or state.
 
 Key responsibilities:
 - Creating and destroying entities
-- Adding and removing components from entities
-- Managing systems and their execution order
-- Updating the simulation state
+- Managing the lifecycle of entities within the simulation
+- Coordinating system execution
+- Providing a high-level interface for entity queries
+- Updating the overall simulation state
 
-### Entity
-
-Entities in Strux are represented as simple `uint32` values. This lightweight representation allows for efficient storage and manipulation of large numbers of entities.
-
-### Component
-
-Components are pure data structures that can be attached to entities. They implement the `ComponentData` interface, which includes a marker method `IsComponentData()` for type safety.
-
-### System
-
-Systems contain the logic that operates on entities with specific component combinations. They implement the `System` interface, which includes an `Update(dt float32)` method.
+The World delegates the management of component data and state to the EntityManager.
 
 ### EntityManager
 
-The EntityManager is responsible for creating, destroying, and managing entities and their associated components. It uses an archetype-based approach for efficient querying and iteration.
+The EntityManager is responsible for managing the detailed state of entities, including their components. It handles all operations related to component data and state changes within entities.
+
+Key responsibilities:
+- Adding and removing components from entities
+- Updating component data for entities
+- Managing the internal data structures for efficient component storage and retrieval
+- Implementing the archetype-based approach for entity-component management
+- Providing efficient querying mechanisms for entities based on their component compositions
+
+### Entity
+
+Entities in Strux are represented as simple `uint32` values. This lightweight representation allows for efficient storage and manipulation of large numbers of entities. The World creates and manages these entity identifiers, while the EntityManager associates them with component data.
+
+### Component
+
+Components are pure data structures that can be attached to entities. They implement the `ComponentData` interface, which includes a marker method `IsComponentData()` for type safety. The EntityManager is responsible for managing the lifecycle and state of components attached to entities.
+
+### System
+
+Systems contain the logic that operates on entities with specific component combinations. They implement the `System` interface, which includes an `Update(dt float32)` method. Systems interact with entities and their components through the World and EntityManager interfaces.
 
 ### EventManager
 
@@ -89,6 +99,36 @@ func (m *MovementSystem) Update(dt float32) {
     // Implementation of movement logic
 }
 ```
+
+### Interaction between World and EntityManager
+
+The separation of responsibilities between the World and EntityManager is crucial for maintaining a clean architecture:
+
+1. **World's Role**:
+   - Provides a high-level interface for entity management
+   - Coordinates system execution
+   - Delegates component-related operations to the EntityManager
+
+2. **EntityManager's Role**:
+   - Manages the internal representation of entity-component relationships
+   - Handles all operations related to component data (add, remove, update)
+   - Implements efficient querying mechanisms based on component compositions
+
+Example of interaction:
+
+```go
+func (w *World) AddComponentToEntity(entity Entity, component Component) {
+    // World delegates the component addition to the EntityManager
+    w.entityManager.AddComponent(entity, component)
+}
+
+func (em *EntityManager) AddComponent(entity Entity, component Component) {
+    // EntityManager handles the actual component addition and state management
+    // Implementation details...
+}
+```
+
+This separation allows the World to focus on high-level simulation management while the EntityManager handles the intricacies of component data management and archetype-based optimizations.
 
 ## Concurrency Model
 
