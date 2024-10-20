@@ -197,7 +197,7 @@ Entities are represented as simple uint32 values.
 
 **Pros:**
 - Lightweight and easy to pass around
-- Allows for a large number of entities (up to 2^32)
+- Allows for a large number of entities 
 
 **Cons:**
 - No built-in mechanism for entity versioning or recycling
