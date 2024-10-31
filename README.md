@@ -3,13 +3,13 @@ ECS implementation in Go
 
 # Community Server
 https://discord.gg/ETRZhgPzdA
-[![Discord](https://img.shields.io/discord/746941778376130640?label=Join%20our%20Discord&logo=discord&logoColor=white)](https://discord.gg/ETRZhgPzdA)
 
 # Strux: A High-Performance Entity Component System in Go
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Go Report Card](https://goreportcard.com/badge/github.com/AMMPTT/strux)](https://goreportcard.com/report/github.com/AMMPTT/strux)
 [![GoDoc](https://godoc.org/github.com/AMMPTT/strux?status.svg)](https://godoc.org/github.com/AMMPTT/strux)
+[![Discord](https://img.shields.io/discord/746941778376130640?label=Join%20our%20Discord&logo=discord&logoColor=white)](https://discord.gg/ETRZhgPzdA)
 
 ## Table of Contents
 
