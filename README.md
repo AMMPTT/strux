@@ -1,6 +1,8 @@
 # strux
 ECS implementation in Go
 
+# Community Server
+https://discord.gg/ETRZhgPzdA
 
 # Strux: A High-Performance Entity Component System in Go
 
