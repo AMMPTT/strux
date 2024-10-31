@@ -3,6 +3,7 @@ ECS implementation in Go
 
 # Community Server
 https://discord.gg/ETRZhgPzdA
+[![Discord](https://img.shields.io/discord/746941778376130640?label=Join%20our%20Discord&logo=discord&logoColor=white)](https://discord.gg/ETRZhgPzdA)
 
 # Strux: A High-Performance Entity Component System in Go
 
